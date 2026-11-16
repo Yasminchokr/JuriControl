@@ -183,9 +183,10 @@ body{font-family:'Public Sans',system-ui,sans-serif;background:#f2f4f7;color:#1f
 
 <script>
 /* ===== CONFIGURAÇÃO: substitua pelos dados do seu projeto Supabase ===== */
-const SUPABASE_URL = 'https://fomrhcrjjpulpngurapu.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = 'sb_publishable_yTJp1NwX7LIhrklAT3KrSA_br6AiyLQ';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = 'https://SEU-PROJETO.supabase.co';
+const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_PUBLICA';
+// Mantém só "https://xxxx.supabase.co", sem barra final nem caminhos como /rest/v1 ou /auth/v1
+const sb = supabase.createClient(SUPABASE_URL.trim().replace(/^(https?:\/\/[^\/]+).*$/i, '$1'), SUPABASE_ANON_KEY.trim());
 
 /* ===== Utilitários ===== */
 const $ = id => document.getElementById(id);
@@ -246,7 +247,7 @@ $('form-login').onsubmit = async e => {
 $('form-cadastro').onsubmit = async e => {
   e.preventDefault();
   const {data, error} = await sb.auth.signUp({
-    email:$('c-email').value.trim(), password:$('c-senha').value,
+    email:$('c-email').value.trim(), password:$('c-senha').value
   });
   if (error) return aviso($('auth-msg'), 'Não foi possível criar a conta: ' + error.message, 'erro');
   if (data.session) return; // confirmação desativada no projeto: já entra
@@ -255,7 +256,7 @@ $('form-cadastro').onsubmit = async e => {
 };
 $('form-recuperar').onsubmit = async e => {
   e.preventDefault();
-  const {error} = await sb.auth.resetPasswordForEmail($('r-email').value.trim(), {redirectTo: location.origin + location.pathname});
+  const {error} = await sb.auth.resetPasswordForEmail($('r-email').value.trim());
   if (error) return aviso($('auth-msg'), 'Não foi possível enviar o link: ' + error.message, 'erro');
   aviso($('auth-msg'), 'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.', 'ok');
 };
