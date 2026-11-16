@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JuriControl</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--primary-color:#1e3a5f;--accent-color:#b8892f}
+body{font-family:'Public Sans',system-ui,sans-serif;background:#f2f4f7;color:#1f2933}
+.serif{font-family:'Newsreader',Georgia,serif}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.55rem 1rem;border-radius:.375rem;font-weight:600;font-size:.875rem;transition:filter .15s}
+.btn:hover{filter:brightness(1.1)}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent-color);outline-offset:2px}
+.btn-primary{background:var(--primary-color);color:#fff}
+.btn-accent{background:var(--accent-color);color:#fff}
+.btn-ghost{background:#fff;color:#1f2933;border:1px solid #cbd2d9}
+.inp{width:100%;border:1px solid #cbd2d9;border-radius:.375rem;padding:.5rem .75rem;background:#fff;font-size:.9rem}
+.lbl{display:block;font-size:.8rem;font-weight:600;color:#52606d;margin-bottom:.25rem}
+.panel{background:#fff;border:1px solid #e1e5ea;border-radius:.5rem}
+.badge{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.75rem;font-weight:600}
+.b-Pago{background:#dcf2e4;color:#17603a}.b-Pendente{background:#fdf0d0;color:#7a5a05}.b-Atrasado{background:#fbdcdc;color:#9b1c1c}
+.tab-on{border-bottom:3px solid var(--accent-color);color:var(--primary-color)}
+.hidden{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ TELAS DE AUTENTICAÇÃO ============ -->
+<section id="tela-auth" class="hidden min-h-screen flex items-center justify-center p-4">
+  <div class="panel w-full max-w-md p-6 sm:p-8 shadow-sm">
+    <h1 class="serif text-3xl font-semibold" style="color:var(--primary-color)">JuriControl</h1>
+    <p class="text-sm text-slate-500 mt-1 mb-5">Receitas e parcelas do seu escritório em um só lugar.</p>
+
+    <div id="auth-tabs" class="flex gap-6 border-b border-slate-200 mb-5">
+      <button id="tab-entrar" class="pb-2 font-semibold tab-on">Entrar</button>
+      <button id="tab-criar" class="pb-2 font-semibold text-slate-500">Criar conta</button>
+    </div>
+
+    <div id="auth-msg" class="hidden text-sm rounded-md p-3 mb-4"></div>
+
+    <form id="form-login" class="space-y-4">
+      <div><label class="lbl" for="l-email">E-mail</label><input id="l-email" type="email" required autocomplete="email" class="inp"></div>
+      <div><label class="lbl" for="l-senha">Senha</label><input id="l-senha" type="password" required autocomplete="current-password" class="inp"></div>
+      <button class="btn btn-primary w-full" type="submit">Entrar</button>
+      <button type="button" id="link-esqueci" class="text-sm underline text-slate-600 w-full text-center">Esqueci minha senha</button>
+    </form>
+
+    <form id="form-cadastro" class="space-y-4 hidden">
+      <div><label class="lbl" for="c-email">E-mail</label><input id="c-email" type="email" required autocomplete="email" class="inp"></div>
+      <div><label class="lbl" for="c-senha">Senha (mínimo 6 caracteres)</label><input id="c-senha" type="password" minlength="6" required autocomplete="new-password" class="inp"></div>
+      <button class="btn btn-primary w-full" type="submit">Criar conta</button>
+    </form>
+
+    <form id="form-recuperar" class="space-y-4 hidden">
+      <p class="text-sm text-slate-600">Informe o e-mail da sua conta. Enviaremos um link para você criar uma nova senha.</p>
+      <div><label class="lbl" for="r-email">E-mail</label><input id="r-email" type="email" required class="inp"></div>
+      <button class="btn btn-primary w-full" type="submit">Enviar link de redefinição</button>
+      <button type="button" id="link-voltar" class="text-sm underline text-slate-600 w-full text-center">Voltar para o login</button>
+    </form>
+  </div>
+</section>
+
+<section id="tela-nova-senha" class="hidden min-h-screen flex items-center justify-center p-4">
+  <form id="form-nova-senha" class="panel w-full max-w-md p-6 sm:p-8 space-y-4 shadow-sm">
+    <h2 class="serif text-2xl font-semibold" style="color:var(--primary-color)">Criar nova senha</h2>
+    <div id="ns-msg" class="hidden text-sm rounded-md p-3 bg-red-50 text-red-800"></div>
+    <div><label class="lbl" for="ns-senha">Nova senha</label><input id="ns-senha" type="password" minlength="6" required class="inp"></div>
+    <button class="btn btn-primary w-full" type="submit">Salvar nova senha</button>
+  </form>
+</section>
+
+<!-- ============ APLICAÇÃO ============ -->
+<div id="tela-app" class="hidden">
+  <header style="background:var(--primary-color);border-bottom:4px solid var(--accent-color)" class="text-white">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
+      <div class="flex items-center gap-3 min-w-0">
+        <div id="h-logo" class="shrink-0"></div>
+        <h1 id="h-nome" class="serif text-xl sm:text-2xl font-semibold truncate"></h1>
+      </div>
+      <div class="flex gap-2">
+        <button id="btn-personalizar" class="btn" style="background:rgba(255,255,255,.15);color:#fff">Personalizar Escritório</button>
+        <button id="btn-sair" class="btn" style="background:#fff;color:var(--primary-color)">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <!-- Filtro de período -->
+    <div class="flex flex-wrap items-end gap-3">
+      <div><label class="lbl" for="p-mes">Mês</label>
+        <select id="p-mes" class="inp"></select></div>
+      <div><label class="lbl" for="p-ano">Ano</label>
+        <select id="p-ano" class="inp"></select></div>
+      <p class="text-xs text-slate-500 pb-2">O período considera a data de vencimento.</p>
+    </div>
+
+    <!-- Dashboard -->
+    <section class="grid gap-4 sm:grid-cols-3" aria-label="Resumo financeiro">
+      <div class="panel p-5" style="border-top:4px solid #2f855a"><p class="text-sm text-slate-500">Total recebido</p><p id="d-rec" class="serif text-3xl font-semibold mt-1"></p></div>
+      <div class="panel p-5" style="border-top:4px solid var(--accent-color)"><p class="text-sm text-slate-500">Total a receber (previsto)</p><p id="d-prev" class="serif text-3xl font-semibold mt-1"></p></div>
+      <div class="panel p-5" style="border-top:4px solid #c53030"><p class="text-sm text-slate-500">Total atrasado</p><p id="d-atr" class="serif text-3xl font-semibold mt-1 text-red-700"></p></div>
+    </section>
+
+    <!-- Cadastro -->
+    <section class="panel p-5">
+      <h2 class="serif text-xl font-semibold mb-4" style="color:var(--primary-color)">Novo honorário</h2>
+      <form id="form-lanc" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div><label class="lbl" for="f-cliente">Cliente</label><input id="f-cliente" required class="inp"></div>
+        <div><label class="lbl" for="f-processo">Processo</label><input id="f-processo" class="inp" placeholder="Nº do processo"></div>
+        <div><label class="lbl" for="f-tipo">Tipo de honorário</label>
+          <select id="f-tipo" class="inp"><option>Contratual Fixo</option><option>Êxito (%)</option><option>Partido Mensal</option><option>Sucumbência</option></select></div>
+        <div><label class="lbl" for="f-forma">Forma de pagamento</label>
+          <select id="f-forma" class="inp"><option>À Vista</option><option>Parcelado</option><option>Entrada + Parcelas</option></select></div>
+        <div><label class="lbl" for="f-valor">Valor total (R$)</label><input id="f-valor" type="number" step="0.01" min="0.01" required class="inp"></div>
+        <div id="w-entrada" class="hidden"><label class="lbl" for="f-entrada">Valor da entrada (R$)</label><input id="f-entrada" type="number" step="0.01" min="0.01" class="inp"></div>
+        <div id="w-parc" class="hidden"><label class="lbl" for="f-parcelas">Nº de parcelas</label><input id="f-parcelas" type="number" min="1" max="120" value="2" class="inp"></div>
+        <div><label class="lbl" for="f-venc">1º vencimento</label><input id="f-venc" type="date" required class="inp"></div>
+        <div class="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-3">
+          <button class="btn btn-primary" type="submit" id="btn-salvar-lanc">Gerar lançamentos</button>
+          <span id="f-resumo" class="text-sm text-slate-500"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- Tabela -->
+    <section class="panel p-5">
+      <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+        <h2 class="serif text-xl font-semibold" style="color:var(--primary-color)">Lançamentos</h2>
+        <div class="flex flex-wrap gap-3">
+          <div><label class="lbl" for="t-status">Status</label>
+            <select id="t-status" class="inp"><option value="">Todos</option><option>Pendente</option><option>Pago</option><option>Atrasado</option></select></div>
+          <div><label class="lbl" for="t-cliente">Cliente</label><input id="t-cliente" class="inp" placeholder="Buscar cliente"></div>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-slate-500 border-b border-slate-200">
+            <tr><th class="py-2 pr-3">Vencimento</th><th class="pr-3">Cliente</th><th class="pr-3">Processo</th><th class="pr-3">Tipo</th><th class="pr-3">Parcela</th><th class="pr-3 text-right">Valor</th><th class="pr-3">Status</th><th class="text-right">Ações</th></tr>
+          </thead>
+          <tbody id="t-corpo"></tbody>
+        </table>
+      </div>
+      <p id="t-vazio" class="hidden text-center text-slate-500 py-8">Nenhum lançamento neste filtro. Cadastre um honorário acima para começar.</p>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODAL PERSONALIZAR ============ -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="m-titulo">
+  <div class="panel w-full max-w-lg p-6 space-y-5">
+    <h2 id="m-titulo" class="serif text-2xl font-semibold" style="color:var(--primary-color)">Personalizar escritório</h2>
+    <div><label class="lbl" for="m-nome">Nome do escritório ou advogado(a)</label><input id="m-nome" class="inp" maxlength="80"></div>
+    <div>
+      <span class="lbl">Logotipo</span>
+      <div class="flex items-center gap-3">
+        <div id="m-prev" class="w-20 h-14 border border-dashed border-slate-300 rounded flex items-center justify-center text-xs text-slate-400 bg-slate-50 overflow-hidden">Sem logo</div>
+        <input id="m-logo" type="file" accept="image/*" class="text-sm w-full">
+        <button id="m-rmlogo" type="button" class="btn btn-ghost shrink-0">Remover logo</button>
+      </div>
+      <p class="text-xs text-slate-500 mt-1">A imagem é reduzida para no máximo 200 px de largura.</p>
+    </div>
+    <div>
+      <span class="lbl">Paletas</span>
+      <div id="m-paletas" class="grid grid-cols-2 gap-2"></div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div><label class="lbl" for="m-cp">Cor principal</label><input id="m-cp" type="color" class="w-full h-10 rounded border border-slate-300"></div>
+      <div><label class="lbl" for="m-ca">Cor de destaque</label><input id="m-ca" type="color" class="w-full h-10 rounded border border-slate-300"></div>
+    </div>
+    <div id="m-msg" class="hidden text-sm rounded-md p-3 bg-red-50 text-red-800"></div>
+    <div class="flex justify-end gap-2">
+      <button id="m-cancel" type="button" class="btn btn-ghost">Cancelar</button>
+      <button id="m-save" type="button" class="btn btn-primary">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== CONFIGURAÇÃO: substitua pelos dados do seu projeto Supabase ===== */
+const SUPABASE_URL = 'https://SEU-PROJETO.supabase.co';
+const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_PUBLICA';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ===== Utilitários ===== */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl = v => Number(v || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+const pad = n => String(n).padStart(2, '0');
+const hoje = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const fmtData = s => s ? s.split('-').reverse().join('/') : '';
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const PALETAS = [
+  {n:'Azul Toga', p:'#1e3a5f', a:'#b8892f'},
+  {n:'Verde Tribunal', p:'#1f4d3a', a:'#a8793a'},
+  {n:'Bordô Clássico', p:'#6b1f2a', a:'#c5a15a'},
+  {n:'Grafite', p:'#2b2f36', a:'#3f8f8a'}
+];
+const PADRAO = {nome_escritorio:'Meu Escritório', logo_base64:null, cor_primaria:PALETAS[0].p, cor_destaque:PALETAS[0].a};
+
+let user = null, cfg = {...PADRAO}, draft = null, lanc = [], recuperando = false;
+
+function mostrar(id) {
+  ['tela-auth','tela-nova-senha','tela-app'].forEach(t => $(t).classList.toggle('hidden', t !== id));
+}
+function aviso(el, texto, tipo) {
+  el.className = 'text-sm rounded-md p-3 mb-4 ' + (tipo === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800');
+  el.textContent = texto;
+}
+
+/* ===== Autenticação ===== */
+function aba(qual) {
+  const entrar = qual === 'entrar';
+  $('form-login').classList.toggle('hidden', !entrar);
+  $('form-cadastro').classList.toggle('hidden', entrar);
+  $('form-recuperar').classList.add('hidden');
+  $('auth-tabs').classList.remove('hidden');
+  $('tab-entrar').className = 'pb-2 font-semibold ' + (entrar ? 'tab-on' : 'text-slate-500');
+  $('tab-criar').className = 'pb-2 font-semibold ' + (!entrar ? 'tab-on' : 'text-slate-500');
+  $('auth-msg').classList.add('hidden');
+}
+$('tab-entrar').onclick = () => aba('entrar');
+$('tab-criar').onclick = () => aba('criar');
+$('link-esqueci').onclick = () => {
+  $('form-login').classList.add('hidden');
+  $('auth-tabs').classList.add('hidden');
+  $('form-recuperar').classList.remove('hidden');
+  $('r-email').value = $('l-email').value;
+  $('auth-msg').classList.add('hidden');
+};
+$('link-voltar').onclick = () => aba('entrar');
+
+$('form-login').onsubmit = async e => {
+  e.preventDefault();
+  const {error} = await sb.auth.signInWithPassword({email:$('l-email').value.trim(), password:$('l-senha').value});
+  if (error) {
+    const naoConfirmado = /not confirmed/i.test(error.message);
+    aviso($('auth-msg'), naoConfirmado ? 'Seu e-mail ainda não foi confirmado. Abra a mensagem que enviamos e clique no link de ativação.' : 'E-mail ou senha incorretos.', 'erro');
+  }
+};
+$('form-cadastro').onsubmit = async e => {
+  e.preventDefault();
+  const {data, error} = await sb.auth.signUp({
+    email:$('c-email').value.trim(), password:$('c-senha').value,
+    options:{emailRedirectTo: location.origin + location.pathname}
+  });
+  if (error) return aviso($('auth-msg'), 'Não foi possível criar a conta: ' + error.message, 'erro');
+  if (data.session) return; // confirmação desativada no projeto: já entra
+  $('form-cadastro').reset();
+  aviso($('auth-msg'), 'Conta criada! Enviamos um e-mail de confirmação. Verifique sua caixa de entrada (e o spam) e clique no link para ativar a conta antes de entrar.', 'ok');
+};
+$('form-recuperar').onsubmit = async e => {
+  e.preventDefault();
+  const {error} = await sb.auth.resetPasswordForEmail($('r-email').value.trim(), {redirectTo: location.origin + location.pathname});
+  if (error) return aviso($('auth-msg'), 'Não foi possível enviar o link: ' + error.message, 'erro');
+  aviso($('auth-msg'), 'Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.', 'ok');
+};
+$('form-nova-senha').onsubmit = async e => {
+  e.preventDefault();
+  const {error} = await sb.auth.updateUser({password:$('ns-senha').value});
+  if (error) { $('ns-msg').textContent = 'Erro ao salvar a senha: ' + error.message; $('ns-msg').classList.remove('hidden'); return; }
+  recuperando = false;
+  const {data} = await sb.auth.getSession();
+  user = data.session.user; iniciarApp();
+};
+$('btn-sair').onclick = async () => { await sb.auth.signOut(); };
+
+sb.auth.onAuthStateChange((evento, sessao) => {
+  if (evento === 'PASSWORD_RECOVERY') { recuperando = true; mostrar('tela-nova-senha'); return; }
+  if (recuperando) return;
+  if (sessao && sessao.user) {
+    if (!user || user.id !== sessao.user.id) { user = sessao.user; setTimeout(iniciarApp, 0); }
+  } else {
+    user = null; lanc = []; cfg = {...PADRAO}; aplicarTema(cfg); mostrar('tela-auth');
+  }
+});
+
+/* ===== Tema e configurações ===== */
+function aplicarTema(c) {
+  const r = document.documentElement.style;
+  r.setProperty('--primary-color', c.cor_primaria);
+  r.setProperty('--accent-color', c.cor_destaque);
+  $('h-nome').textContent = c.nome_escritorio || 'Meu Escritório';
+  const ini = esc((c.nome_escritorio || 'E').trim().charAt(0).toUpperCase());
+  $('h-logo').innerHTML = c.logo_base64
+    ? `<img src="${c.logo_base64}" alt="Logotipo" class="h-10 max-w-[120px] object-contain rounded bg-white/90 p-1">`
+    : `<div class="h-10 w-10 rounded flex items-center justify-center serif text-xl font-semibold" style="background:var(--accent-color)">${ini}</div>`;
+}
+async function carregarConfig() {
+  const {data} = await sb.from('configuracoes_escritorio').select('*').eq('user_id', user.id).maybeSingle();
+  cfg = data ? {nome_escritorio:data.nome_escritorio || PADRAO.nome_escritorio, logo_base64:data.logo_base64, cor_primaria:data.cor_primaria || PADRAO.cor_primaria, cor_destaque:data.cor_destaque || PADRAO.cor_destaque} : {...PADRAO};
+  aplicarTema(cfg);
+}
+
+function redimensionar(arquivo) {
+  return new Promise((ok, falha) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const w = Math.min(200, img.width), h = Math.round(img.height * w / img.width);
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        ok(cv.toDataURL('image/png'));
+      };
+      img.onerror = falha; img.src = fr.result;
+    };
+    fr.onerror = falha; fr.readAsDataURL(arquivo);
+  });
+}
+function previaLogo() {
+  $('m-prev').innerHTML = draft.logo_base64 ? `<img src="${draft.logo_base64}" alt="" class="max-w-full max-h-full object-contain">` : 'Sem logo';
+}
+function montarPaletas() {
+  $('m-paletas').innerHTML = PALETAS.map((p, i) => `
+    <button type="button" data-i="${i}" class="flex items-center gap-2 border border-slate-300 rounded p-2 text-sm text-left hover:bg-slate-50">
+      <span class="flex"><span class="w-5 h-5 rounded-l" style="background:${p.p}"></span><span class="w-5 h-5 rounded-r" style="background:${p.a}"></span></span>${p.n}
+    </button>`).join('');
+  $('m-paletas').querySelectorAll('button').forEach(b => b.onclick = () => {
+    const p = PALETAS[b.dataset.i];
+    draft.cor_primaria = p.p; draft.cor_destaque = p.a;
+    $('m-cp').value = p.p; $('m-ca').value = p.a; aplicarTema(draft);
+  });
+}
+$('btn-personalizar').onclick = () => {
+  draft = {...cfg};
+  $('m-nome').value = draft.nome_escritorio; $('m-cp').value = draft.cor_primaria; $('m-ca').value = draft.cor_destaque;
+  $('m-msg').classList.add('hidden'); $('m-logo').value = '';
+  montarPaletas(); previaLogo(); $('modal').classList.remove('hidden');
+};
+function fecharModal(reverter) { if (reverter) aplicarTema(cfg); $('modal').classList.add('hidden'); }
+$('m-cancel').onclick = () => fecharModal(true);
+$('modal').onclick = e => { if (e.target === $('modal')) fecharModal(true); };
+$('m-nome').oninput = e => { draft.nome_escritorio = e.target.value; aplicarTema(draft); };
+$('m-cp').oninput = e => { draft.cor_primaria = e.target.value; aplicarTema(draft); };
+$('m-ca').oninput = e => { draft.cor_destaque = e.target.value; aplicarTema(draft); };
+$('m-logo').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { draft.logo_base64 = await redimensionar(f); previaLogo(); aplicarTema(draft); }
+  catch { $('m-msg').textContent = 'Não foi possível ler essa imagem. Tente outro arquivo.'; $('m-msg').classList.remove('hidden'); }
+};
+$('m-rmlogo').onclick = () => { draft.logo_base64 = null; $('m-logo').value = ''; previaLogo(); aplicarTema(draft); };
+$('m-save').onclick = async () => {
+  draft.nome_escritorio = $('m-nome').value.trim() || PADRAO.nome_escritorio;
+  const {error} = await sb.from('configuracoes_escritorio').upsert({
+    user_id:user.id, nome_escritorio:draft.nome_escritorio, logo_base64:draft.logo_base64,
+    cor_primaria:draft.cor_primaria, cor_destaque:draft.cor_destaque, atualizado_em:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if (error) { $('m-msg').textContent = 'Erro ao salvar: ' + error.message; $('m-msg').classList.remove('hidden'); return; }
+  cfg = {...draft}; aplicarTema(cfg); fecharModal(false);
+};
+
+/* ===== Lançamentos ===== */
+const statusDe = l => l.status === 'Pago' ? 'Pago' : (l.data_vencimento < hoje() ? 'Atrasado' : 'Pendente');
+
+function addMeses(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const alvo = new Date(y, m - 1 + n, 1);
+  const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+  return `${alvo.getFullYear()}-${pad(alvo.getMonth()+1)}-${pad(Math.min(d, ultimo))}`;
+}
+// Calcula em centavos; a última parcela absorve a diferença de arredondamento.
+function gerarParcelas(f) {
+  const total = Math.round(f.valor * 100), linhas = [];
+  if (f.forma === 'À Vista') {
+    linhas.push({c:total, v:f.venc, d:'À vista'});
+  } else {
+    let entrada = 0, desloc = 0;
+    if (f.forma === 'Entrada + Parcelas') { entrada = Math.round(f.entrada * 100); linhas.push({c:entrada, v:f.venc, d:'Entrada'}); desloc = 1; }
+    const resto = total - entrada, n = f.parcelas, base = Math.floor(resto / n);
+    for (let i = 1; i <= n; i++) linhas.push({c: i === n ? resto - base * (n - 1) : base, v:addMeses(f.venc, i - 1 + desloc), d:`Parcela ${i}/${n}`});
+  }
+  return linhas.map(l => ({user_id:user.id, cliente:f.cliente, processo:f.processo, tipo_honorario:f.tipo, forma_pagamento:f.forma, descricao:l.d, valor:l.c / 100, data_vencimento:l.v, status:'Pendente'}));
+}
+function lerForm() {
+  return {cliente:$('f-cliente').value.trim(), processo:$('f-processo').value.trim(), tipo:$('f-tipo').value, forma:$('f-forma').value,
+    valor:parseFloat($('f-valor').value), entrada:parseFloat($('f-entrada').value) || 0, parcelas:parseInt($('f-parcelas').value) || 1, venc:$('f-venc').value};
+}
+function atualizarForm() {
+  const forma = $('f-forma').value;
+  $('w-parc').classList.toggle('hidden', forma === 'À Vista');
+  $('w-entrada').classList.toggle('hidden', forma !== 'Entrada + Parcelas');
+  const f = lerForm(); let t = '';
+  if (f.valor > 0 && f.venc) {
+    if (forma === 'À Vista') t = `1 lançamento de ${brl(f.valor)}`;
+    else if (forma === 'Parcelado') t = `${f.parcelas} parcelas de cerca de ${brl(f.valor / f.parcelas)}`;
+    else if (f.entrada > 0 && f.entrada < f.valor) t = `Entrada de ${brl(f.entrada)} + ${f.parcelas} parcelas de cerca de ${brl((f.valor - f.entrada) / f.parcelas)}`;
+  }
+  $('f-resumo').textContent = t;
+}
+['f-forma','f-valor','f-entrada','f-parcelas','f-venc'].forEach(id => $(id).addEventListener('input', atualizarForm));
+
+$('form-lanc').onsubmit = async e => {
+  e.preventDefault();
+  const f = lerForm();
+  if (!(f.valor > 0)) return alert('Informe um valor total maior que zero.');
+  if (f.forma !== 'À Vista' && (f.parcelas < 1 || f.parcelas > 120)) return alert('O número de parcelas deve ficar entre 1 e 120.');
+  if (f.forma === 'Entrada + Parcelas' && !(f.entrada > 0 && f.entrada < f.valor)) return alert('A entrada deve ser maior que zero e menor que o valor total.');
+  const btn = $('btn-salvar-lanc'); btn.disabled = true;
+  const {error} = await sb.from('lancamentos').insert(gerarParcelas(f));
+  btn.disabled = false;
+  if (error) return alert('Erro ao salvar: ' + error.message);
+  e.target.reset(); $('f-parcelas').value = 2; atualizarForm(); await carregarLancamentos();
+};
+
+async function carregarLancamentos() {
+  const {data, error} = await sb.from('lancamentos').select('*').eq('user_id', user.id).order('data_vencimento', {ascending:true});
+  if (error) { alert('Erro ao carregar lançamentos: ' + error.message); return; }
+  lanc = data || []; montarAnos(); render();
+}
+function montarAnos() {
+  const atual = $('p-ano').value, anos = new Set([new Date().getFullYear()]);
+  lanc.forEach(l => anos.add(+l.data_vencimento.slice(0, 4)));
+  $('p-ano').innerHTML = '<option value="">Todos</option>' + [...anos].sort().map(a => `<option>${a}</option>`).join('');
+  $('p-ano').value = atual;
+}
+function noPeriodo(l) {
+  const mes = $('p-mes').value, ano = $('p-ano').value;
+  return (!ano || l.data_vencimento.startsWith(ano)) && (!mes || l.data_vencimento.slice(5, 7) === mes);
+}
+function render() {
+  const base = lanc.filter(noPeriodo);
+  const soma = fn => base.filter(fn).reduce((s, l) => s + Number(l.valor), 0);
+  $('d-rec').textContent = brl(soma(l => l.status === 'Pago'));
+  $('d-prev').textContent = brl(soma(l => statusDe(l) === 'Pendente'));
+  $('d-atr').textContent = brl(soma(l => statusDe(l) === 'Atrasado'));
+
+  const st = $('t-status').value, q = $('t-cliente').value.trim().toLowerCase();
+  const itens = base.filter(l => (!st || statusDe(l) === st) && (!q || l.cliente.toLowerCase().includes(q)));
+  $('t-vazio').classList.toggle('hidden', itens.length > 0);
+  $('t-corpo').innerHTML = itens.map(l => {
+    const s = statusDe(l);
+    return `<tr class="border-b border-slate-100">
+      <td class="py-2 pr-3 whitespace-nowrap">${fmtData(l.data_vencimento)}</td>
+      <td class="pr-3 font-medium">${esc(l.cliente)}</td>
+      <td class="pr-3">${esc(l.processo) || '—'}</td>
+      <td class="pr-3">${esc(l.tipo_honorario)}</td>
+      <td class="pr-3 whitespace-nowrap">${esc(l.descricao)}</td>
+      <td class="pr-3 text-right whitespace-nowrap">${brl(l.valor)}</td>
+      <td class="pr-3"><span class="badge b-${s}">${s}</span></td>
+      <td class="text-right whitespace-nowrap">
+        ${l.status !== 'Pago' ? `<button class="btn btn-accent !py-1 !px-2 text-xs" data-baixa="${l.id}">Dar baixa</button>` : ''}
+        <button class="btn btn-ghost !py-1 !px-2 text-xs" data-del="${l.id}" aria-label="Excluir lançamento">Excluir</button>
+      </td></tr>`;
+  }).join('');
+}
+$('t-corpo').onclick = async e => {
+  const baixa = e.target.dataset.baixa, del = e.target.dataset.del;
+  if (baixa) {
+    const {error} = await sb.from('lancamentos').update({status:'Pago', data_pagamento:hoje()}).eq('id', baixa).eq('user_id', user.id);
+    if (error) return alert('Erro ao dar baixa: ' + error.message);
+    await carregarLancamentos();
+  } else if (del) {
+    if (!confirm('Excluir este lançamento? Esta ação não pode ser desfeita.')) return;
+    const {error} = await sb.from('lancamentos').delete().eq('id', del).eq('user_id', user.id);
+    if (error) return alert('Erro ao excluir: ' + error.message);
+    await carregarLancamentos();
+  }
+};
+['p-mes','p-ano','t-status'].forEach(id => $(id).addEventListener('change', render));
+$('t-cliente').addEventListener('input', render);
+
+/* ===== Inicialização ===== */
+async function iniciarApp() {
+  mostrar('tela-app');
+  await carregarConfig();
+  await carregarLancamentos();
+}
+(function init() {
+  $('p-mes').innerHTML = '<option value="">Todos</option>' + MESES.map((m, i) => `<option value="${pad(i+1)}">${m}</option>`).join('');
+  $('p-mes').value = pad(new Date().getMonth() + 1);
+  $('f-venc').value = hoje();
+  atualizarForm();
+  aba('entrar');
+  mostrar('tela-auth'); // o onAuthStateChange troca para o app se já houver sessão
+})();
+</script>
+</body>
+</html>
